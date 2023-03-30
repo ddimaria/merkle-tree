@@ -1,6 +1,8 @@
 # Merkle Tree
 
-I didn't quite finish this, but got some implemented, but not enough refactor time to get this into a single level vec and add the set function.
+_NOTE: I didn't quite finish this, but got some implemented, but not enough refactor time to get this into a single level vec and add the set function.  I'm going to finish in a branch to keep this branch fixed._
+
+
 
 ## Running Tests
 
