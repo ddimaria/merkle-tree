@@ -2,6 +2,7 @@
 
 _NOTE: I didn't quite finish this, but got some implemented, but not enough refactor time to get this into a single level vec and add the set function.  I'm going to finish in a branch to keep this branch fixed._
 
+For an updated version that was completed after the time period ended see: https://github.com/ddimaria/merkle-tree/tree/feature/finish
 
 
 ## Running Tests
