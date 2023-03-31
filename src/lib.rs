@@ -54,7 +54,7 @@ impl MerkleTree {
         MerkleTree(nodes)
     }
 
-    pub fn set(&mut self, offset: usize, value: Hash) -> Result<()> {
+    pub fn set(&mut self, offset: usize, value: Hash) {
         let mut position = self.get_index_from_offset(offset);
         let mut hash = value;
         self.0[position] = hash;
@@ -69,8 +69,6 @@ impl MerkleTree {
             position = Self::get_parent_index(position);
             self.0[position] = hash;
         }
-
-        Ok(())
     }
 
     pub fn root(&self) -> Hash {
@@ -105,12 +103,6 @@ impl MerkleTree {
             .ok_or_else(|| anyhow!("cannot find leaf {:?}", leaf))?;
 
         for _ in 0..self.num_levels() {
-            if position % 2 == 0 {
-                println!("position even: {:?}", position);
-            } else {
-                println!("position odd: {:?}", position - 1);
-            };
-
             let corresponding_hash = if position % 2 == 0 {
                 (Direction::Left, &self.0[position - 1])
             } else {
@@ -124,23 +116,18 @@ impl MerkleTree {
         Ok(proof)
     }
 
-    pub fn verify(proof: &Proof, data: &Hash, root_hash: &Hash) -> bool {
+    pub fn verify(&self, proof: &Proof, data: &Hash) -> bool {
+        let root_hash = self.root();
         let mut current_hash = *data;
 
         for (hash_direction, hash) in proof.iter() {
-            match hash_direction {
-                Direction::Left => println!("hashing ({:?}, {:?})", hash, current_hash),
-                Direction::Right => println!("hashing ({:?}, {:?})", current_hash, hash),
-            }
             current_hash = match hash_direction {
                 Direction::Left => Self::concat(hash, &current_hash),
                 Direction::Right => Self::concat(&current_hash, hash),
             };
-
-            println!("current_hash{:?}", current_hash);
         }
 
-        current_hash == *root_hash
+        current_hash == root_hash
     }
 
     pub fn hash(data: &[u8]) -> Hash {
@@ -239,7 +226,7 @@ mod tests {
         let initial_leaf = MerkleTree::hash(&[0]);
         let tree = MerkleTree::new(2, initial_leaf);
         let proof = tree.proof(&initial_leaf).unwrap();
-        assert!(MerkleTree::verify(&proof, &initial_leaf, &tree.root()));
+        assert!(tree.verify(&proof, &initial_leaf));
     }
 
     #[test]
@@ -249,17 +236,15 @@ mod tests {
         let old_root = tree.root();
 
         let proof = tree.proof(&initial_leaf).unwrap();
-        assert!(MerkleTree::verify(&proof, &initial_leaf, &old_root));
+        assert!(tree.verify(&proof, &initial_leaf));
 
         let new_leaf = MerkleTree::hash(&[1]);
-        tree.set(3, new_leaf).unwrap();
+        tree.set(3, new_leaf);
         let new_root = tree.root();
 
         assert_ne!(old_root, new_root);
 
         let proof = tree.proof(&new_leaf).unwrap();
-        tree.0.iter().for_each(|node| println!("tree {:?}\n", node));
-
-        assert!(MerkleTree::verify(&proof, &new_leaf, &new_root));
+        assert!(tree.verify(&proof, &new_leaf));
     }
 }

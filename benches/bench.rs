@@ -8,7 +8,7 @@ fn bench_new() {
 }
 
 fn bench_set(tree: &mut MerkleTree, new_leaf: [u8; 32]) {
-    tree.set(3, new_leaf).unwrap();
+    tree.set(3, new_leaf);
 }
 
 fn bench_proof(tree: &mut MerkleTree, initial_leaf: &[u8; 32]) {
@@ -16,7 +16,7 @@ fn bench_proof(tree: &mut MerkleTree, initial_leaf: &[u8; 32]) {
 }
 
 fn bench_verify(tree: &mut MerkleTree, initial_leaf: &[u8; 32], proof: &Proof) {
-    assert!(MerkleTree::verify(&proof, &initial_leaf, &tree.root()));
+    assert!(tree.verify(&proof, &initial_leaf));
 }
 
 fn bench(c: &mut Criterion) {
