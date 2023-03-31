@@ -2,8 +2,6 @@
 
 _NOTE: I didn't quite finish this, but got some implemented, but not enough refactor time to get this into a single level vec and add the set function.  I'm going to finish in a branch to keep this branch fixed._
 
-
-
 ## Running Tests
 
 ```shell
@@ -46,4 +44,19 @@ let initial_leaf = MerkleTree::hash(&[0]);
 let tree = MerkleTree::new(2, initial_leaf);
 let proof = tree.proof(&initial_leaf).unwrap();
 assert!(MerkleTree::verify(&proof, &initial_leaf, &tree.root()));
+```
+
+## Benchmarking
+
+First install the dependencies:
+
+```shell
+brew install gnuplot
+cargo install criterion
+```
+
+Now run the benchmarks:
+
+```shell
+cargo criterion
 ```

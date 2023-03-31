@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use sha3::{Digest, Sha3_256};
 
+#[derive(Clone, Debug)]
 pub struct MerkleTree(Vec<Hash>);
 pub type Hash = [u8; 32];
 pub type Proof<'a> = Vec<(Direction, &'a Hash)>;
@@ -88,12 +89,10 @@ impl MerkleTree {
     pub fn get_parent_index(index: usize) -> usize {
         if index == 0 {
             0
+        } else if index % 2 == 0 {
+            index / 2 - 1
         } else {
-            if index % 2 == 0 {
-                index / 2 - 1
-            } else {
-                index / 2
-            }
+            index / 2
         }
     }
 
