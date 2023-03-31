@@ -21,6 +21,16 @@ let initial_leaf = MerkleTree::hash(&[0]);
 let tree = MerkleTree::new(20, initial_leaf);
 ```
 
+## Setting a Leaf Value
+
+```rust
+let initial_leaf = MerkleTree::hash(&[0]);
+let mut tree = MerkleTree::new(20, initial_leaf);
+
+let new_leaf = MerkleTree::hash(&[1]);
+tree.set(3, new_leaf).unwrap();
+```
+
 ## Generate a Proof
 
 ```rust
