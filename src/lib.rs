@@ -12,24 +12,6 @@ pub enum Direction {
     Right,
 }
 
-// TODO: add guards
-pub fn get_index(depth: usize, offset: usize) -> usize {
-    2_usize.pow(depth as u32) + offset - 1
-}
-
-// TODO: add guards
-pub fn get_depth_offset(index: usize) -> (usize, usize) {
-    let depth = ((index + 1) as f32).log2().floor() as usize;
-    let offset = index - get_index(depth, 0);
-
-    (depth, offset)
-}
-
-// TODO: add guards
-pub fn get_index_left_child(index: usize) -> usize {
-    index * 2
-}
-
 impl MerkleTree {
     pub fn new(depth: usize, initial_leaf: Hash) -> MerkleTree {
         let mut nodes: Vec<Hash> = vec![initial_leaf; 2 * depth];
@@ -100,7 +82,7 @@ impl MerkleTree {
             .0
             .iter()
             .position(|current_leaf| *current_leaf == *leaf)
-            .ok_or_else(|| anyhow!("cannot find leaf {:?}", leaf))?;
+            .ok_or_else(|| anyhow!("cannot find leaf {:?}", hex::encode(leaf)))?;
 
         for _ in 0..self.num_levels() {
             let corresponding_hash = if position % 2 == 0 {
@@ -146,70 +128,6 @@ impl MerkleTree {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn it_gets_an_index() {
-        // TODO: make a loop
-        let result = get_index(0 as usize, 0 as usize);
-        assert_eq!(result, 0);
-
-        let result = get_index(1 as usize, 0 as usize);
-        assert_eq!(result, 1);
-
-        let result = get_index(1 as usize, 1 as usize);
-        assert_eq!(result, 2);
-
-        let result = get_index(2 as usize, 0 as usize);
-        assert_eq!(result, 3);
-    }
-
-    #[test]
-    fn it_gets_depth_offset() {
-        // todo: make a loop
-        let result = get_depth_offset(0);
-        assert_eq!(result, (0, 0));
-
-        let result = get_depth_offset(1);
-        assert_eq!(result, (1, 0));
-
-        let result = get_depth_offset(2);
-        assert_eq!(result, (1, 1));
-
-        let result = get_depth_offset(3);
-        assert_eq!(result, (2, 0));
-    }
-
-    #[test]
-    fn it_gets_the_parent_index() {
-        // todo: make a loop
-        let result = MerkleTree::get_parent_index(0);
-        assert_eq!(result, 0);
-
-        let result = MerkleTree::get_parent_index(1);
-        assert_eq!(result, 0);
-
-        let result = MerkleTree::get_parent_index(2);
-        assert_eq!(result, 0);
-
-        let result = MerkleTree::get_parent_index(3);
-        assert_eq!(result, 1);
-    }
-
-    #[test]
-    fn gets_the_index_left_child() {
-        // todo: make a loop
-        let result = get_index_left_child(0);
-        assert_eq!(result, 0);
-
-        let result = get_index_left_child(1);
-        assert_eq!(result, 2);
-
-        let result = get_index_left_child(2);
-        assert_eq!(result, 4);
-
-        let result = get_index_left_child(3);
-        assert_eq!(result, 6);
-    }
 
     #[test]
     fn gets_the_root_hash() {

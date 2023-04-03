@@ -1,7 +1,6 @@
 <!-- omit in toc -->
 # Merkle Tree
 
-This is the updated Merkle Tree that was created after the submission time was over.
 
 TODO:
 - [ ] Error Handling
