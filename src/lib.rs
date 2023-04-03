@@ -1,4 +1,6 @@
-use anyhow::{anyhow, Result};
+pub mod error;
+
+use error::{MerkleTreeError, Result};
 use sha3::{Digest, Sha3_256};
 
 #[derive(Clone, Debug)]
@@ -20,9 +22,13 @@ impl MerkleTree {
     /// use merkle_tree::MerkleTree;
     ///
     /// let leaves = vec![MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
-    /// let tree = MerkleTree::new(&leaves);
+    /// let tree = MerkleTree::new(&leaves).unwrap();
     /// ```
-    pub fn new(leaves: &[Hash]) -> MerkleTree {
+    pub fn new(leaves: &[Hash]) -> Result<MerkleTree> {
+        if leaves.is_empty() {
+            return Err(MerkleTreeError::Empty);
+        }
+
         let mut nodes = leaves.to_owned();
 
         // There are an odd number of leaves.  Duplicate the last leaf and
@@ -46,7 +52,7 @@ impl MerkleTree {
             nodes = [combined, nodes].concat();
         }
 
-        MerkleTree(nodes)
+        Ok(MerkleTree(nodes))
     }
 
     /// Update the value of an existing leaf and recalculate the root hash
@@ -56,7 +62,7 @@ impl MerkleTree {
     /// use merkle_tree::MerkleTree;
     ///
     /// let leaves = vec![MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
-    /// let mut tree = MerkleTree::new(&leaves);
+    /// let mut tree = MerkleTree::new(&leaves).unwrap();
     /// let old_leaf = leaves[1];
     /// let old_root = tree.root();
     ///
@@ -64,7 +70,7 @@ impl MerkleTree {
     /// assert!(tree.verify(&proof, &old_leaf));
     ///
     /// let new_leaf = MerkleTree::hash(b"c");
-    /// tree.set(1, new_leaf);
+    /// tree.set(1, new_leaf).unwrap();
     /// let new_root = tree.root();
     ///
     /// // confirm that the hash root changed
@@ -73,7 +79,14 @@ impl MerkleTree {
     /// let proof = tree.proof(&new_leaf).unwrap();
     /// assert!(tree.verify(&proof, &new_leaf));
     /// ```
-    pub fn set(&mut self, offset: usize, value: Hash) {
+    pub fn set(&mut self, offset: usize, value: Hash) -> Result<()> {
+        if offset > self.num_leaves() - 1 {
+            return Err(MerkleTreeError::OffsetOutOfBounds(
+                offset,
+                self.num_leaves(),
+            ));
+        }
+
         let mut position = self.get_index_from_offset(offset);
         let mut hash = value;
 
@@ -89,6 +102,8 @@ impl MerkleTree {
             position = Self::get_parent_index(position);
             self.0[position] = hash;
         }
+
+        Ok(())
     }
 
     /// Return the hash root of the tree.
@@ -97,7 +112,7 @@ impl MerkleTree {
     /// use merkle_tree::MerkleTree;
     ///
     /// let leaves = vec![MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
-    /// let tree = MerkleTree::new(&leaves);
+    /// let tree = MerkleTree::new(&leaves).unwrap();
     /// let expected = &MerkleTree::concat(&MerkleTree::hash(b"a"), &MerkleTree::hash(b"b"));
     /// assert_eq!(&tree.root(), expected);
     /// ```
@@ -119,8 +134,12 @@ impl MerkleTree {
 
     /// Using the position of a leaf, calcualte the array index.
     pub fn get_index_from_offset(&self, offset: usize) -> usize {
-        let num_leaves = 2_usize.pow(self.num_levels() as u32);
-        self.0.len() - num_leaves + offset
+        self.0.len() - self.num_leaves() + offset
+    }
+
+    /// Using the position of a leaf, calcualte the array index.
+    fn num_leaves(&self) -> usize {
+        2_usize.pow(self.num_levels() as u32)
     }
 
     /// Get the array index of the parent node.
@@ -139,7 +158,7 @@ impl MerkleTree {
     ///
     /// let leaves = vec![MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
     /// let leaf = leaves[1];
-    /// let tree = MerkleTree::new(&leaves);
+    /// let tree = MerkleTree::new(&leaves).unwrap();
     /// let proof = tree.proof(&leaf).unwrap();
     /// assert_eq!(proof, vec![(Direction::Left, &MerkleTree::hash(b"a"))]);
     /// ```
@@ -153,7 +172,7 @@ impl MerkleTree {
             .0
             .iter()
             .position(|current_leaf| *current_leaf == *leaf)
-            .ok_or_else(|| anyhow!("cannot find leaf {:?}", hex::encode(leaf)))?;
+            .ok_or_else(|| MerkleTreeError::CannotFindLeaf(hex::encode(leaf)))?;
 
         // O(log n)
         for _ in 0..self.num_levels() {
@@ -177,7 +196,7 @@ impl MerkleTree {
     ///
     /// let leaves = vec![MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
     /// let leaf = leaves[1];
-    /// let tree = MerkleTree::new(&leaves);
+    /// let tree = MerkleTree::new(&leaves).unwrap();
     /// let proof = tree.proof(&leaf).unwrap();
     /// assert!(tree.verify(&proof, &leaf));
     /// ```
@@ -271,16 +290,23 @@ mod tests {
     }
 
     #[test]
+    fn it_returns_an_error_with_zero_leaves() {
+        let leaves = vec![];
+        let tree = MerkleTree::new(&leaves);
+        assert!(tree.is_err());
+    }
+
+    #[test]
     fn gets_the_root_hash_of_even_leaves() {
         let leaves = leaves();
-        let tree = MerkleTree::new(&leaves);
+        let tree = MerkleTree::new(&leaves).unwrap();
         assert_eq!(tree.root(), root_hash(&leaves));
     }
 
     #[test]
     fn gets_the_root_hash_of_odd_leaves() {
         let mut leaves = leaves()[0..15].to_vec();
-        let tree = MerkleTree::new(&leaves);
+        let tree = MerkleTree::new(&leaves).unwrap();
 
         // now that the tree is created, make the leaves even by coping the last leaf and compare
         leaves.extend_from_slice(&[leaves[14]]);
@@ -309,6 +335,7 @@ mod tests {
     #[test]
     fn get_the_number_of_levels_from_leaves() {
         let leaves = leaves();
+        assert_eq!(MerkleTree::num_levels_from_leaves(&vec![].to_vec()), 0);
         assert_eq!(
             MerkleTree::num_levels_from_leaves(&leaves[0..0].to_vec()),
             0
@@ -351,51 +378,82 @@ mod tests {
     fn get_the_number_of_levels() {
         let leaves = leaves();
         assert_eq!(
-            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..0].to_vec())),
-            0
-        );
-        assert_eq!(
-            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..1].to_vec())),
+            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..1].to_vec()).unwrap()),
             1
         );
         assert_eq!(
-            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..2].to_vec())),
+            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..2].to_vec()).unwrap()),
             1
         );
         assert_eq!(
-            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..3].to_vec())),
+            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..3].to_vec()).unwrap()),
             2
         );
         assert_eq!(
-            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..4].to_vec())),
+            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..4].to_vec()).unwrap()),
             2
         );
         assert_eq!(
-            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..5].to_vec())),
+            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..5].to_vec()).unwrap()),
             3
         );
         assert_eq!(
-            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..6].to_vec())),
+            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..6].to_vec()).unwrap()),
             3
         );
         assert_eq!(
-            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..7].to_vec())),
+            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..7].to_vec()).unwrap()),
             3
         );
         assert_eq!(
-            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..8].to_vec())),
+            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..8].to_vec()).unwrap()),
             3
         );
         assert_eq!(
-            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..9].to_vec())),
+            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..9].to_vec()).unwrap()),
             4
         );
     }
 
     #[test]
+    fn sets_a_leaf_value() {
+        let leaves = leaves();
+        let mut tree = MerkleTree::new(&leaves).unwrap();
+        let old_leaf = leaves[15];
+        let old_root = tree.root();
+
+        let proof = tree.proof(&old_leaf).unwrap();
+        assert!(tree.verify(&proof, &old_leaf));
+
+        let new_leaf = MerkleTree::hash(b"c");
+        tree.set(15, new_leaf).unwrap();
+        let new_root = tree.root();
+
+        // confirm that the hash root changed
+        assert_ne!(old_root, new_root);
+
+        let proof = tree.proof(&new_leaf).unwrap();
+        assert!(tree.verify(&proof, &new_leaf));
+    }
+
+    #[test]
+    fn errors_when_setting_a_non_existent_leaf() {
+        let leaves = leaves();
+        let mut tree = MerkleTree::new(&leaves).unwrap();
+        let old_leaf = MerkleTree::hash(b"c");
+
+        let proof = tree.proof(&old_leaf).unwrap();
+        assert!(tree.verify(&proof, &old_leaf));
+
+        let new_leaf = MerkleTree::hash(b"c");
+        let result = tree.set(16, new_leaf);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn gets_a_proof_and_verifies_for_all_leaves() {
         let leaves = leaves();
-        let tree = MerkleTree::new(&leaves);
+        let tree = MerkleTree::new(&leaves).unwrap();
 
         for i in 0..leaves.len() {
             let proof = tree.proof(&leaves[i]).unwrap();
@@ -404,23 +462,20 @@ mod tests {
     }
 
     #[test]
-    fn sets_a_leaf_value() {
+    fn errors_when_getting_a_proof_for_a_non_existent_leaf() {
         let leaves = leaves();
-        let mut tree = MerkleTree::new(&leaves);
-        let old_leaf = leaves[15];
-        let old_root = tree.root();
+        let tree = MerkleTree::new(&leaves).unwrap();
+        let proof = tree.proof(&MerkleTree::hash(b"z"));
 
-        let proof = tree.proof(&old_leaf).unwrap();
-        assert!(tree.verify(&proof, &old_leaf));
+        assert!(proof.is_err());
+    }
 
-        let new_leaf = MerkleTree::hash(b"c");
-        tree.set(15, new_leaf);
-        let new_root = tree.root();
+    #[test]
+    fn does_not_verify_a_proof_for_a_non_existent_leaf() {
+        let leaves = leaves();
+        let tree = MerkleTree::new(&leaves).unwrap();
+        let proof = tree.proof(&leaves[3]).unwrap();
 
-        // confirm that the hash root changed
-        assert_ne!(old_root, new_root);
-
-        let proof = tree.proof(&new_leaf).unwrap();
-        assert!(tree.verify(&proof, &new_leaf));
+        assert!(!tree.verify(&proof, &MerkleTree::hash(b"z")));
     }
 }

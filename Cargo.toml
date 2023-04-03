@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.70"
 hex = "0.4.3"
 sha3 = "0.10.6"
+thiserror = "1.0.40"
 
 [dev-dependencies]
 criterion = { version = "0.4", features = ["html_reports"] }
