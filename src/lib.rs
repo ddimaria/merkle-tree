@@ -13,14 +13,15 @@ pub enum Direction {
 }
 
 impl MerkleTree {
-    pub fn new(depth: usize, initial_leaf: Hash) -> MerkleTree {
-        let mut nodes: Vec<Hash> = vec![initial_leaf; 2 * depth];
+    pub fn new(leaves: &[Hash]) -> MerkleTree {
+        let mut nodes = leaves.to_owned();
 
         if nodes.len() % 2 == 1 {
             let last_leaf = nodes[nodes.len() - 1];
-            nodes.append(&mut vec![last_leaf]);
+            nodes.extend_from_slice(&[last_leaf]);
         }
 
+        let depth = Self::num_levels_from_leaves(&nodes);
         let mut children = nodes.clone();
 
         for _ in 0..depth {
@@ -39,6 +40,7 @@ impl MerkleTree {
     pub fn set(&mut self, offset: usize, value: Hash) {
         let mut position = self.get_index_from_offset(offset);
         let mut hash = value;
+
         self.0[position] = hash;
 
         while position > 0 {
@@ -61,8 +63,12 @@ impl MerkleTree {
         (self.0.len() as f32).log2().floor() as usize
     }
 
+    pub fn num_levels_from_leaves(leaves: &Vec<Hash>) -> usize {
+        (leaves.len() as f32).log2().floor() as usize
+    }
+
     pub fn get_index_from_offset(&self, offset: usize) -> usize {
-        let num_leaves = self.num_levels() * 2;
+        let num_leaves = 2_usize.pow(self.num_levels() as u32);
         self.0.len() - num_leaves + offset
     }
 
@@ -129,37 +135,97 @@ impl MerkleTree {
 mod tests {
     use super::*;
 
-    #[test]
-    fn gets_the_root_hash() {
-        let initial_leaf = MerkleTree::hash(&[0]);
-        let tree = MerkleTree::new(20, initial_leaf);
-        assert_eq!(
-            hex::encode(tree.root()),
-            "4d7f3122e5024215635044db229fa7942b256b98838656c74f416cfdc309ee64"
-        );
+    // 16 leaves to use for tests
+    fn leaves() -> Vec<Hash> {
+        vec![
+            MerkleTree::hash(b"a"),
+            MerkleTree::hash(b"b"),
+            MerkleTree::hash(b"c"),
+            MerkleTree::hash(b"d"),
+            MerkleTree::hash(b"e"),
+            MerkleTree::hash(b"f"),
+            MerkleTree::hash(b"g"),
+            MerkleTree::hash(b"h"),
+            MerkleTree::hash(b"i"),
+            MerkleTree::hash(b"j"),
+            MerkleTree::hash(b"k"),
+            MerkleTree::hash(b"l"),
+            MerkleTree::hash(b"m"),
+            MerkleTree::hash(b"n"),
+            MerkleTree::hash(b"o"),
+            MerkleTree::hash(b"p"),
+        ]
+    }
+
+    // 16 leaves to use for tests
+    fn root_hash(leaves: &Vec<Hash>) -> Hash {
+        MerkleTree::concat(
+            &MerkleTree::concat(
+                &MerkleTree::concat(
+                    &MerkleTree::concat(&leaves[0], &leaves[1]),
+                    &MerkleTree::concat(&leaves[2], &leaves[3]),
+                ),
+                &MerkleTree::concat(
+                    &MerkleTree::concat(&leaves[4], &leaves[5]),
+                    &MerkleTree::concat(&leaves[6], &leaves[7]),
+                ),
+            ),
+            &MerkleTree::concat(
+                &MerkleTree::concat(
+                    &MerkleTree::concat(&leaves[8], &leaves[9]),
+                    &MerkleTree::concat(&leaves[10], &leaves[11]),
+                ),
+                &MerkleTree::concat(
+                    &MerkleTree::concat(&leaves[12], &leaves[13]),
+                    &MerkleTree::concat(&leaves[14], &leaves[15]),
+                ),
+            ),
+        )
     }
 
     #[test]
-    fn gets_a_proof_and_verifies() {
-        let initial_leaf = MerkleTree::hash(&[0]);
-        let tree = MerkleTree::new(2, initial_leaf);
-        let proof = tree.proof(&initial_leaf).unwrap();
-        assert!(tree.verify(&proof, &initial_leaf));
+    fn gets_the_root_hash_of_even_leaves() {
+        let leaves = leaves();
+        let tree = MerkleTree::new(&leaves);
+        assert_eq!(tree.root(), root_hash(&leaves));
+    }
+
+    #[test]
+    fn gets_the_root_hash_of_odd_leaves() {
+        let mut leaves = leaves()[0..15].to_vec();
+        let tree = MerkleTree::new(&leaves);
+
+        // now that the tree is created, make the leaves even by coping the last leaf and compare
+        leaves.extend_from_slice(&[leaves[14]]);
+        assert_eq!(tree.root(), root_hash(&leaves));
+    }
+
+    #[test]
+    fn gets_a_proof_and_verifies_for_all_leaves() {
+        let leaves = leaves();
+        let tree = MerkleTree::new(&leaves);
+
+        for i in 0..leaves.len() {
+            let proof = tree.proof(&leaves[i]).unwrap();
+            assert!(tree.verify(&proof, &leaves[i]));
+        }
     }
 
     #[test]
     fn sets_a_leaf_value() {
-        let initial_leaf = MerkleTree::hash(&[0]);
-        let mut tree = MerkleTree::new(2, initial_leaf);
+        let leaves = leaves();
+        let mut tree = MerkleTree::new(&leaves);
+        let old_leaf = leaves[3];
         let old_root = tree.root();
 
-        let proof = tree.proof(&initial_leaf).unwrap();
-        assert!(tree.verify(&proof, &initial_leaf));
+        let proof = tree.proof(&old_leaf).unwrap();
+        assert!(tree.verify(&proof, &old_leaf));
 
-        let new_leaf = MerkleTree::hash(&[1]);
-        tree.set(3, new_leaf);
+        let new_leaf = MerkleTree::hash(b"c");
+        tree.set(15, new_leaf);
         let new_root = tree.root();
 
+        // confirm that the hash root changed
         assert_ne!(old_root, new_root);
 
         let proof = tree.proof(&new_leaf).unwrap();
