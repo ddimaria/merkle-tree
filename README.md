@@ -3,7 +3,10 @@
 
 
 TODO:
-- [ ] Error Handling
+- [ ] Better documentation
+- [ ] Error handling
+- [ ] no_std feature
+- [ ] Compare benchmarks with well-used Merkle Trees
 
 <!-- omit in toc -->
 ## Contents
@@ -54,10 +57,10 @@ The intermediate nodes and root node are calculated upon creation.
 All nodes are hashed using `Sha3_256`.
 
 ```rust
-use merkle_tree::MerkleTree, Proof;
+use merkle_tree::MerkleTree;
 
-let initial_leaf = MerkleTree::hash(&[0]);
-let tree = MerkleTree::new(20, initial_leaf);
+let leaves = vec![MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
+let tree = MerkleTree::new(&leaves);
 ```
 
 ### Retrieving the Root Hash
@@ -68,11 +71,13 @@ After a Merkle Tree has been created, you can invoke the `root()` function to
 retrieve the root hash:
 
 ```rust
-use merkle_tree::MerkleTree, Proof;
+use merkle_tree::MerkleTree;
 
-let initial_leaf = MerkleTree::hash(&[0]);
-let tree = MerkleTree::new(20, initial_leaf);
-let hash = tree::root();
+let leaves = vec![MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
+let tree = MerkleTree::new(&leaves);
+let expected = &MerkleTree::concat(&MerkleTree::hash(b"a"), &MerkleTree::hash(b"b"));
+
+assert_eq!(&tree.root(), expected);
 ```
 
 ### Setting a Leaf Value
@@ -80,43 +85,63 @@ let hash = tree::root();
 > pub fn set(&mut self, offset: usize, value: Hash)
 
 It's possible to set a leaf value after the tree has been created.  After 
-setting the value, the affected hashes are recalculated.
+setting the value, the affected hashes and the root hash are recalculated.
 
 ```rust
-use merkle_tree::MerkleTree, Proof;
+use merkle_tree::MerkleTree;
 
-let initial_leaf = MerkleTree::hash(&[0]);
-let mut tree = MerkleTree::new(20, initial_leaf);
+let leaves = vec![MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
+let mut tree = MerkleTree::new(&leaves);
+let old_leaf = leaves[1];
+let old_root = tree.root();
 
-let new_leaf = MerkleTree::hash(&[1]);
-tree.set(3, new_leaf).unwrap();
+let proof = tree.proof(&old_leaf).unwrap();
+assert!(tree.verify(&proof, &old_leaf));
+
+let new_leaf = MerkleTree::hash(b"c");
+tree.set(1, new_leaf);
+let new_root = tree.root();
+
+// confirm that the hash root changed
+assert_ne!(old_root, new_root);
+
+let proof = tree.proof(&new_leaf).unwrap();
+assert!(tree.verify(&proof, &new_leaf));
 ```
 
 ### Generate a Proof
-
+> pub enum Direction { Left, Right }
+> 
+> pub type Proof<'a> = Vec<(Direction, &'a Hash)>;
+> 
 > pub fn proof(&self, leaf: &Hash) -> Result<Proof>
 
 A Merkle Proof contains the path from leaf to the root and all the sibling hash values along the way.
 
 ```rust
-use merkle_tree::MerkleTree, Proof;
-s
-let initial_leaf = MerkleTree::hash(&[0]);
-let tree = MerkleTree::new(2, initial_leaf);
-let proof = tree.proof(&initial_leaf).unwrap();
+use merkle_tree::{MerkleTree, Direction};
+
+let leaves = vec![MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
+let leaf = leaves[1];
+let tree = MerkleTree::new(&leaves);
+let proof = tree.proof(&leaf).unwrap();
+
+assert_eq!(proof, vec![(Direction::Left, &MerkleTree::hash(b"a"))]);
 ```
 
 ### Verify a Proof
 
-> pub fn verify(&self, proof: &Proof, data: &Hash) -> bool
+> pub fn verify(&self, proof: &Proof, leaf: &Hash) -> bool
 
 The `verify()` function takes the proof and the leaf and verifies the proof against the tree's hash root.
 
 ```rust
-use merkle_tree::MerkleTree, Proof;
+use merkle_tree::MerkleTree;
 
-let initial_leaf = MerkleTree::hash(&[0]);
-let tree = MerkleTree::new(2, initial_leaf);
-let proof = tree.proof(&initial_leaf).unwrap();
-assert!(MerkleTree::verify(&proof, &initial_leaf));
+let leaves = vec![MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
+let leaf = leaves[1];
+let tree = MerkleTree::new(&leaves);
+let proof = tree.proof(&leaf).unwrap();
+
+assert!(MerkleTree::verify(&proof, &leaf));
 ```

@@ -6,7 +6,7 @@ pub struct MerkleTree(Vec<Hash>);
 pub type Hash = [u8; 32];
 pub type Proof<'a> = Vec<(Direction, &'a Hash)>;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Direction {
     Left,
     Right,
@@ -18,6 +18,7 @@ impl MerkleTree {
     ///
     /// ```rust
     /// use merkle_tree::MerkleTree;
+    ///
     /// let leaves = vec![MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
     /// let tree = MerkleTree::new(&leaves);
     /// ```
@@ -50,6 +51,28 @@ impl MerkleTree {
 
     /// Update the value of an existing leaf and recalculate the root hash
     /// with only touching the affected nodes. O(log n) complexity in the loop.
+    ///
+    /// ```rust
+    /// use merkle_tree::MerkleTree;
+    ///
+    /// let leaves = vec![MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
+    /// let mut tree = MerkleTree::new(&leaves);
+    /// let old_leaf = leaves[1];
+    /// let old_root = tree.root();
+    ///
+    /// let proof = tree.proof(&old_leaf).unwrap();
+    /// assert!(tree.verify(&proof, &old_leaf));
+    ///
+    /// let new_leaf = MerkleTree::hash(b"c");
+    /// tree.set(1, new_leaf);
+    /// let new_root = tree.root();
+    ///
+    /// // confirm that the hash root changed
+    /// assert_ne!(old_root, new_root);
+    ///
+    /// let proof = tree.proof(&new_leaf).unwrap();
+    /// assert!(tree.verify(&proof, &new_leaf));
+    /// ```
     pub fn set(&mut self, offset: usize, value: Hash) {
         let mut position = self.get_index_from_offset(offset);
         let mut hash = value;
@@ -69,6 +92,15 @@ impl MerkleTree {
     }
 
     /// Return the hash root of the tree.
+    ///
+    /// ```rust
+    /// use merkle_tree::MerkleTree;
+    ///
+    /// let leaves = vec![MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
+    /// let tree = MerkleTree::new(&leaves);
+    /// let expected = &MerkleTree::concat(&MerkleTree::hash(b"a"), &MerkleTree::hash(b"b"));
+    /// assert_eq!(&tree.root(), expected);
+    /// ```
     pub fn root(&self) -> Hash {
         self.0[0]
     }
@@ -100,10 +132,23 @@ impl MerkleTree {
         }
     }
 
+    /// Generate a Merkle Proof for a given leaf.
+    ///
+    /// ```rust
+    /// use merkle_tree::{MerkleTree, Direction};
+    ///
+    /// let leaves = vec![MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
+    /// let leaf = leaves[1];
+    /// let tree = MerkleTree::new(&leaves);
+    /// let proof = tree.proof(&leaf).unwrap();
+    /// assert_eq!(proof, vec![(Direction::Left, &MerkleTree::hash(b"a"))]);
+    /// ```
     pub fn proof(&self, leaf: &Hash) -> Result<Proof> {
         let mut proof = Proof::new();
 
         // O(n)
+        // I tried out Rayon (par_iter().position_any()), but it was +69490%
+        // slower than this approach.
         let mut position = self
             .0
             .iter()
@@ -125,9 +170,20 @@ impl MerkleTree {
         Ok(proof)
     }
 
-    pub fn verify(&self, proof: &Proof, data: &Hash) -> bool {
+    /// Verify a Merkle Proof for a given leaf.
+    ///
+    /// ```rust
+    /// use merkle_tree::MerkleTree;
+    ///
+    /// let leaves = vec![MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
+    /// let leaf = leaves[1];
+    /// let tree = MerkleTree::new(&leaves);
+    /// let proof = tree.proof(&leaf).unwrap();
+    /// assert!(tree.verify(&proof, &leaf));
+    /// ```
+    pub fn verify(&self, proof: &Proof, leaf: &Hash) -> bool {
         let root_hash = self.root();
-        let mut current_hash = *data;
+        let mut current_hash = *leaf;
 
         for (hash_direction, hash) in proof.iter() {
             current_hash = match hash_direction {
@@ -139,10 +195,20 @@ impl MerkleTree {
         current_hash == root_hash
     }
 
+    /// Hash a byte array.
+    /// TODO(ddimaria): Allow the user to select/inject the hash function
+    ///
+    /// ```rust
+    /// use merkle_tree::MerkleTree;
+    ///
+    /// let hash = MerkleTree::hash(b"a");
+    /// assert_eq!(hash, [128, 8, 75, 242, 251, 160, 36, 117, 114, 111, 235, 44, 171, 45, 130, 21, 234, 177, 75, 198, 189, 216, 191, 178, 200, 21, 18, 87, 3, 46, 205, 139]);
+    /// ```
     pub fn hash(data: &[u8]) -> Hash {
         Sha3_256::digest(data).into()
     }
 
+    /// Concatenate
     pub fn concat(hash1: &Hash, hash2: &Hash) -> Hash {
         let mut combined = [0; 64];
         combined[..32].copy_from_slice(hash1);
@@ -341,20 +407,20 @@ mod tests {
     fn sets_a_leaf_value() {
         let leaves = leaves();
         let mut tree = MerkleTree::new(&leaves);
-        let old_leaf = leaves[3];
+        let old_leaf = leaves[15];
         let old_root = tree.root();
 
         let proof = tree.proof(&old_leaf).unwrap();
-        // assert!(tree.verify(&proof, &old_leaf));
+        assert!(tree.verify(&proof, &old_leaf));
 
-        // let new_leaf = MerkleTree::hash(b"c");
-        // tree.set(15, new_leaf);
-        // let new_root = tree.root();
+        let new_leaf = MerkleTree::hash(b"c");
+        tree.set(15, new_leaf);
+        let new_root = tree.root();
 
-        // // confirm that the hash root changed
-        // assert_ne!(old_root, new_root);
+        // confirm that the hash root changed
+        assert_ne!(old_root, new_root);
 
-        // let proof = tree.proof(&new_leaf).unwrap();
-        // assert!(tree.verify(&proof, &new_leaf));
+        let proof = tree.proof(&new_leaf).unwrap();
+        assert!(tree.verify(&proof, &new_leaf));
     }
 }
