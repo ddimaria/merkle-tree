@@ -26,8 +26,8 @@ fn bench_new() {
     let _tree = MerkleTree::new(&leaves());
 }
 
-fn bench_set(tree: &mut MerkleTree, new_leaf: [u8; 32]) {
-    tree.set(3, new_leaf).unwrap();
+fn bench_update(tree: &mut MerkleTree, new_leaf: [u8; 32]) {
+    tree.update(3, new_leaf).unwrap();
 }
 
 fn bench_proof(tree: &mut MerkleTree, leaf: &[u8; 32]) {
@@ -48,7 +48,7 @@ fn bench(c: &mut Criterion) {
     let new_leaf = MerkleTree::hash(b"z");
 
     c.bench_function("bench_set", move |b| {
-        b.iter(|| bench_set(&mut tree_clone, new_leaf))
+        b.iter(|| bench_update(&mut tree_clone, new_leaf))
     });
 
     let mut tree_clone = tree.clone();

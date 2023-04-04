@@ -70,7 +70,7 @@ impl MerkleTree {
     /// assert!(tree.verify(&proof, &old_leaf));
     ///
     /// let new_leaf = MerkleTree::hash(b"c");
-    /// tree.set(1, new_leaf).unwrap();
+    /// tree.update(1, new_leaf).unwrap();
     /// let new_root = tree.root();
     ///
     /// // confirm that the hash root changed
@@ -79,7 +79,7 @@ impl MerkleTree {
     /// let proof = tree.proof(&new_leaf).unwrap();
     /// assert!(tree.verify(&proof, &new_leaf));
     /// ```
-    pub fn set(&mut self, offset: usize, value: Hash) -> Result<()> {
+    pub fn update(&mut self, offset: usize, value: Hash) -> Result<()> {
         if offset > self.num_leaves() - 1 {
             return Err(MerkleTreeError::OffsetOutOfBounds(
                 offset,
@@ -426,7 +426,7 @@ mod tests {
         assert!(tree.verify(&proof, &old_leaf));
 
         let new_leaf = MerkleTree::hash(b"c");
-        tree.set(15, new_leaf).unwrap();
+        tree.update(15, new_leaf).unwrap();
         let new_root = tree.root();
 
         // confirm that the hash root changed
@@ -446,7 +446,7 @@ mod tests {
         assert!(tree.verify(&proof, &old_leaf));
 
         let new_leaf = MerkleTree::hash(b"c");
-        let result = tree.set(16, new_leaf);
+        let result = tree.update(16, new_leaf);
         assert!(result.is_err());
     }
 

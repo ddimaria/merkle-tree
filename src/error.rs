@@ -14,10 +14,3 @@ pub enum MerkleTreeError {
 
 /// Utility result type to be used throughout
 pub type Result<T> = std::result::Result<T, MerkleTreeError>;
-
-// /// Generically convert serde errors to MerkleTreeError::JsonParseError
-// impl From<serde_json::Error> for MerkleTreeError {
-//     fn from(error: serde_json::Error) -> Self {
-//         MerkleTreeError::JsonParseError(error.to_string())
-//     }
-// }

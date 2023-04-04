@@ -6,6 +6,9 @@ TODO:
 - [X] Better documentation
 - [X] Error handling
 - [ ] Improve README
+- [ ] Add/Delete a leaf
+- [ ] Database support via trait
+- [ ] Example with RocksDB
 - [ ] no_std feature
 - [ ] Compare benchmarks with well-used Merkle Trees
 - [ ] Deploy to crates.io
@@ -18,7 +21,7 @@ TODO:
 - [Documentation](#documentation)
   - [Create a new Merkle Tree](#create-a-new-merkle-tree)
   - [Retrieving the Root Hash](#retrieving-the-root-hash)
-  - [Setting a Leaf Value](#setting-a-leaf-value)
+  - [Updating a Leaf Value](#updating-a-leaf-value)
   - [Generate a Proof](#generate-a-proof)
   - [Verify a Proof](#verify-a-proof)
 
@@ -82,9 +85,9 @@ let expected = &MerkleTree::concat(&MerkleTree::hash(b"a"), &MerkleTree::hash(b"
 assert_eq!(&tree.root(), expected);
 ```
 
-### Setting a Leaf Value
+### Updating a Leaf Value
 
-> pub fn set(&mut self, offset: usize, value: Hash) -> Result<()>
+> pub fn update(&mut self, offset: usize, value: Hash) -> Result<()>
 
 It's possible to set a leaf value after the tree has been created.  After 
 setting the value, the affected hashes and the root hash are recalculated.
@@ -101,7 +104,7 @@ let proof = tree.proof(&old_leaf).unwrap();
 assert!(tree.verify(&proof, &old_leaf));
 
 let new_leaf = MerkleTree::hash(b"c");
-tree.set(1, new_leaf).unwrap();
+tree.update(1, new_leaf).unwrap();
 let new_root = tree.root();
 
 // confirm that the hash root changed
