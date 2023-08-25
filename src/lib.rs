@@ -3,7 +3,7 @@ pub mod error;
 use error::{MerkleTreeError, Result};
 use sha3::{Digest, Sha3_256};
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct MerkleTree(Vec<Hash>);
 pub type Hash = [u8; 32];
 pub type Proof<'a> = Vec<(Direction, &'a Hash)>;
@@ -21,7 +21,7 @@ impl MerkleTree {
     /// ```rust
     /// use merkle_tree::MerkleTree;
     ///
-    /// let leaves = vec![MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
+    /// let leaves = [MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
     /// let tree = MerkleTree::new(&leaves).unwrap();
     /// ```
     pub fn new(leaves: &[Hash]) -> Result<MerkleTree> {
@@ -29,6 +29,7 @@ impl MerkleTree {
             return Err(MerkleTreeError::Empty);
         }
 
+        // take ownership of leaves
         let mut nodes = leaves.to_owned();
 
         // There are an odd number of leaves.  Duplicate the last leaf and
@@ -41,6 +42,9 @@ impl MerkleTree {
         let depth = Self::num_levels_from_leaves(&nodes);
         let mut last_index = nodes.len();
 
+        // Add the concatenated branches to the end of the vec.  We can avoid
+        // recursion since we can derive the number of levels in the tree.
+        //
         // O(log n)
         for _i in 0..depth {
             let combined = nodes[0..last_index]
@@ -61,7 +65,7 @@ impl MerkleTree {
     /// ```rust
     /// use merkle_tree::MerkleTree;
     ///
-    /// let leaves = vec![MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
+    /// let leaves = [MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
     /// let mut tree = MerkleTree::new(&leaves).unwrap();
     /// let old_leaf = leaves[1];
     /// let old_root = tree.root();
@@ -90,8 +94,10 @@ impl MerkleTree {
         let mut position = self.get_index_from_offset(offset);
         let mut hash = value;
 
+        // update the leaf's value
         self.0[position] = hash;
 
+        // recalculate the hashes of the leaf's branch
         while position > 0 {
             hash = if position % 2 == 0 {
                 Self::concat(&self.0[position - 1], &hash)
@@ -111,7 +117,7 @@ impl MerkleTree {
     /// ```rust
     /// use merkle_tree::MerkleTree;
     ///
-    /// let leaves = vec![MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
+    /// let leaves = [MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
     /// let tree = MerkleTree::new(&leaves).unwrap();
     /// let expected = &MerkleTree::concat(&MerkleTree::hash(b"a"), &MerkleTree::hash(b"b"));
     /// assert_eq!(&tree.root(), expected);
@@ -122,13 +128,13 @@ impl MerkleTree {
 
     /// Using the full size of the array, calculate the number of levels.
     pub fn num_levels(&self) -> usize {
-        (self.0.len() as f32).log2().floor() as usize
+        Self::num_levels_from_leaves(&self.0)
     }
 
     /// Using the number of leaves, calculate the number of levels.
     /// This will always be an even number.
     /// This is zero-based, so a single level tree will have zero levels.
-    pub fn num_levels_from_leaves(leaves: &Vec<Hash>) -> usize {
+    pub fn num_levels_from_leaves(leaves: &[Hash]) -> usize {
         (leaves.len() as f32).log2().floor() as usize
     }
 
@@ -137,7 +143,7 @@ impl MerkleTree {
         self.0.len() - self.num_leaves() + offset
     }
 
-    /// Using the position of a leaf, calcualte the array index.
+    /// Calculate the number of leaves in the tree from the number of levels.
     fn num_leaves(&self) -> usize {
         2_usize.pow(self.num_levels() as u32)
     }
@@ -156,11 +162,11 @@ impl MerkleTree {
     /// ```rust
     /// use merkle_tree::{MerkleTree, Direction};
     ///
-    /// let leaves = vec![MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
+    /// let leaves = [MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
     /// let leaf = leaves[1];
     /// let tree = MerkleTree::new(&leaves).unwrap();
     /// let proof = tree.proof(&leaf).unwrap();
-    /// assert_eq!(proof, vec![(Direction::Left, &MerkleTree::hash(b"a"))]);
+    /// assert_eq!(proof, [(Direction::Left, &MerkleTree::hash(b"a"))]);
     /// ```
     pub fn proof(&self, leaf: &Hash) -> Result<Proof> {
         let mut proof = Proof::new();
@@ -194,7 +200,7 @@ impl MerkleTree {
     /// ```rust
     /// use merkle_tree::MerkleTree;
     ///
-    /// let leaves = vec![MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
+    /// let leaves = [MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
     /// let leaf = leaves[1];
     /// let tree = MerkleTree::new(&leaves).unwrap();
     /// let proof = tree.proof(&leaf).unwrap();
@@ -242,8 +248,8 @@ mod tests {
     use super::*;
 
     // 16 leaves to use for tests
-    fn leaves() -> Vec<Hash> {
-        vec![
+    fn leaves() -> [Hash; 16] {
+        [
             MerkleTree::hash(b"a"),
             MerkleTree::hash(b"b"),
             MerkleTree::hash(b"c"),
@@ -264,7 +270,7 @@ mod tests {
     }
 
     // 16 leaves to use for tests
-    fn root_hash(leaves: &Vec<Hash>) -> Hash {
+    fn root_hash(leaves: &[Hash]) -> Hash {
         MerkleTree::concat(
             &MerkleTree::concat(
                 &MerkleTree::concat(
@@ -291,8 +297,7 @@ mod tests {
 
     #[test]
     fn it_returns_an_error_with_zero_leaves() {
-        let leaves = vec![];
-        let tree = MerkleTree::new(&leaves);
+        let tree = MerkleTree::new(&[]);
         assert!(tree.is_err());
     }
 
@@ -305,16 +310,16 @@ mod tests {
 
     #[test]
     fn gets_the_root_hash_of_odd_leaves() {
-        let mut leaves = leaves()[0..15].to_vec();
+        let leaves: &[Hash] = &leaves()[0..15];
         let tree = MerkleTree::new(&leaves).unwrap();
 
         // now that the tree is created, make the leaves even by coping the last leaf and compare
-        leaves.extend_from_slice(&[leaves[14]]);
-        assert_eq!(tree.root(), root_hash(&leaves));
+        let even_leaves = [leaves, &[leaves[14]]].concat();
+        assert_eq!(tree.root(), root_hash(&even_leaves));
     }
 
     #[test]
-    fn get_the_parent_index() {
+    fn gets_the_parent_index() {
         assert_eq!(MerkleTree::get_parent_index(0), 0);
         assert_eq!(MerkleTree::get_parent_index(1), 0);
         assert_eq!(MerkleTree::get_parent_index(2), 0);
@@ -333,84 +338,57 @@ mod tests {
     }
 
     #[test]
-    fn get_the_number_of_levels_from_leaves() {
+    fn gets_the_number_of_levels_from_leaves() {
         let leaves = leaves();
-        assert_eq!(MerkleTree::num_levels_from_leaves(&vec![].to_vec()), 0);
-        assert_eq!(
-            MerkleTree::num_levels_from_leaves(&leaves[0..0].to_vec()),
-            0
-        );
-        assert_eq!(
-            MerkleTree::num_levels_from_leaves(&leaves[0..2].to_vec()),
-            1
-        );
-        assert_eq!(
-            MerkleTree::num_levels_from_leaves(&leaves[0..4].to_vec()),
-            2
-        );
-        assert_eq!(
-            MerkleTree::num_levels_from_leaves(&leaves[0..6].to_vec()),
-            2
-        );
-        assert_eq!(
-            MerkleTree::num_levels_from_leaves(&leaves[0..8].to_vec()),
-            3
-        );
-        assert_eq!(
-            MerkleTree::num_levels_from_leaves(&leaves[0..10].to_vec()),
-            3
-        );
-        assert_eq!(
-            MerkleTree::num_levels_from_leaves(&leaves[0..12].to_vec()),
-            3
-        );
-        assert_eq!(
-            MerkleTree::num_levels_from_leaves(&leaves[0..14].to_vec()),
-            3
-        );
-        assert_eq!(
-            MerkleTree::num_levels_from_leaves(&leaves[0..16].to_vec()),
-            4
-        );
+        assert_eq!(MerkleTree::num_levels_from_leaves(&[]), 0);
+        assert_eq!(MerkleTree::num_levels_from_leaves(&leaves[0..0]), 0);
+        assert_eq!(MerkleTree::num_levels_from_leaves(&leaves[0..2]), 1);
+        assert_eq!(MerkleTree::num_levels_from_leaves(&leaves[0..4]), 2);
+        assert_eq!(MerkleTree::num_levels_from_leaves(&leaves[0..6]), 2);
+        assert_eq!(MerkleTree::num_levels_from_leaves(&leaves[0..8]), 3);
+        assert_eq!(MerkleTree::num_levels_from_leaves(&leaves[0..10]), 3);
+        assert_eq!(MerkleTree::num_levels_from_leaves(&leaves[0..12]), 3);
+        assert_eq!(MerkleTree::num_levels_from_leaves(&leaves[0..14]), 3);
+        assert_eq!(MerkleTree::num_levels_from_leaves(&leaves[0..16]), 4);
     }
 
     #[test]
-    fn get_the_number_of_levels() {
+    fn gets_the_number_of_levels() {
         let leaves = leaves();
         assert_eq!(
-            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..1].to_vec()).unwrap()),
+            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..1]).unwrap()),
             1
         );
         assert_eq!(
-            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..2].to_vec()).unwrap()),
+            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..2]).unwrap()),
             1
         );
         assert_eq!(
-            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..3].to_vec()).unwrap()),
+            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..3]).unwrap()),
             2
         );
         assert_eq!(
-            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..4].to_vec()).unwrap()),
+            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..4]).unwrap()),
             2
         );
         assert_eq!(
-            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..5].to_vec()).unwrap()),
+            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..5]).unwrap()),
             3
         );
         assert_eq!(
-            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..6].to_vec()).unwrap()),
+            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..6]).unwrap()),
             3
         );
         assert_eq!(
-            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..7].to_vec()).unwrap()),
+            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..7]).unwrap()),
             3
         );
         assert_eq!(
-            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..8].to_vec()).unwrap()),
+            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..8]).unwrap()),
             3
         );
         assert_eq!(
-            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..9].to_vec()).unwrap()),
+            MerkleTree::num_levels(&MerkleTree::new(&leaves[0..9]).unwrap()),
             4
         );
     }

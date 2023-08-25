@@ -64,7 +64,7 @@ All nodes are hashed using `Sha3_256`.
 ```rust
 use merkle_tree::MerkleTree;
 
-let leaves = vec![MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
+let leaves = [MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
 let tree = MerkleTree::new(&leaves).unwrap();
 ```
 
@@ -78,7 +78,7 @@ retrieve the root hash:
 ```rust
 use merkle_tree::MerkleTree;
 
-let leaves = vec![MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
+let leaves = [MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
 let tree = MerkleTree::new(&leaves).unwrap();
 let expected = &MerkleTree::concat(&MerkleTree::hash(b"a"), &MerkleTree::hash(b"b"));
 
@@ -95,7 +95,7 @@ setting the value, the affected hashes and the root hash are recalculated.
 ```rust
 use merkle_tree::MerkleTree;
 
-let leaves = vec![MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
+let leaves = [MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
 let mut tree = MerkleTree::new(&leaves).unwrap();
 let old_leaf = leaves[1];
 let old_root = tree.root();
@@ -126,12 +126,12 @@ A Merkle Proof contains the path from leaf to the root and all the sibling hash 
 ```rust
 use merkle_tree::{MerkleTree, Direction};
 
-let leaves = vec![MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
+let leaves = [MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
 let leaf = leaves[1];
 let tree = MerkleTree::new(&leaves).unwrap();
 let proof = tree.proof(&leaf).unwrap();
 
-assert_eq!(proof, vec![(Direction::Left, &MerkleTree::hash(b"a"))]);
+assert_eq!(proof, [(Direction::Left, &MerkleTree::hash(b"a"))]);
 ```
 
 ### Verify a Proof
@@ -143,7 +143,7 @@ The `verify()` function takes the proof and the leaf and verifies the proof agai
 ```rust
 use merkle_tree::MerkleTree;
 
-let leaves = vec![MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
+let leaves = [MerkleTree::hash(b"a"), MerkleTree::hash(b"b")];
 let leaf = leaves[1];
 let tree = MerkleTree::new(&leaves).unwrap();
 let proof = tree.proof(&leaf).unwrap();
